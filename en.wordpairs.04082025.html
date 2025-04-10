@@ -1,0 +1,1241 @@
+<!--Hannah Guo, 2025.-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Word Memory Test</title>
+
+    <!-- filestart: browser tab -->
+    <link rel="icon" type="image/vnd.microsoft.icon"  href="https://wilmabainbridge.com/research/wPaint-2.5.0/demo/img/favicon.ico" />
+    <script type="text/javascript" src="https://wilmabainbridge.com/research/wPaint-2.5.0/lib/jquery.1.10.2.min.js"></script>
+    <!-- fileend -->
+
+    <style>
+    .animbutton {
+        background-color: #f2f2f2;
+        font-size: 40px;
+        border: 3px solid #000000;
+    }
+    .animbutton:hover {
+        background-color: #cccccc;
+    }
+    .animbutton:active {
+        background-color: #cccccc;
+        box-shadow: 0 5px #666;
+        transform: translateY(4px);
+    }
+  	
+  </style>
+</head>
+
+<body>
+<!--- Start the Javascript that does all the hard work! --->
+<script type="text/javascript">
+                
+/************************ Timed memory task **********************/
+/*
+Current experiment order:
+
+1. Study word pairs (8 pairs)
+2. Math distractor
+3. Retrieval (no feedback)
+4. Repeat!
+
+*/
+
+
+/*************************************************** Parameters set by the experimenter ****************************************************/
+var fixation = '+';
+var blank = '';
+var practiceword1 = ['lamb','drawer','castle','glacier']; // 'TENNIS','PENCIL','DECK','BODYGUARD'
+var practiceword2 = ['child','boy','temple','mother']; // 'BONE','LANDLORD','PICNIC','SALIVA'
+var practiceprobe = ['lamb','boy','temple','glacier']; // 'BONE','PENCIL','PICNIC','BODYGUARD'
+var wordpairs1 = []; // all experimental words
+var wordpairs2 = []; // all experimental words
+var probes = [];
+
+var largefontsize = 60;
+var practicetrial = 1; // start with the practice trial
+
+// for the study trials
+var startfix = 250; // ms
+var jitterblank = [500,750];
+var pairtime = 3000; // 3000; set at 1000 for testing
+var studyISI = 1000; // 1000; set at 200 for testing
+var pairsperphase = 8;
+var pairsatpractice = 4;
+var numpartspertrial = 4;
+// var numphases = 3;
+var blockCounter = 0; 
+var totalBlocks = 10;  // 10; change to 1 for testing 
+var instructionpageCounter = 1;
+var totalInstructionpage = 4; // split initial instruction into multiple pages
+var rightKeyPressOnce = 0;
+var rightKeyPressThisBreak = 0;
+var leftKeyPressOnce = 0;
+var leftKeyPressThisBreak = 0;
+
+// for the math distractor trials
+var instructionreadtime = 4000; // 4000; set at 1000 for testing
+var shortinstructionreadtime = 2000;
+var longinstructionreadtime = 10000; // 10000; set at 1000 for testing
+var distractortime = 20000; // 20000; set at 1000 for testing
+var mathresponsetime = 5000; // 5000; set at 1000 for testing
+var mathstring = "";
+var mathISI = 500;
+var mathStartTime = 0;
+var mathCorrectAnswers = [];
+var mathResponses = [];
+
+// for the retrieval
+var retfix = 250;
+var retjitterblank = [500,750];
+var cuetime = 4000; // 4000
+var retISI = 1000;
+
+// // feedback phase
+// var countdowntimer = 10;
+// var timebetweenticks = 1000;
+var feedbacklist = '';
+
+// analysis variables
+var shuffwordpairs1 = [];
+var shuffwordpairs2 = [];
+var shuffprobes = [];
+var fullsequence = [];
+var studytimesequence = [];
+var recallsequence = [];
+var recalltimesequence = [];
+var recallanswers = [];
+
+// ID constants for performance
+// const NORESP = 10;
+const STUDYPHASE = 1;
+const MATHPHASE = 2;
+const RECALLPHASE = 3;
+const BREAK = 4;
+
+// output variables
+var mathquestionstring = "";
+var mathanswerstring = "";
+var allrecallseq = '';
+
+var nextkey = "n";
+var backkey = "b";
+var currPhase = 0;
+var wordcounter = 0; // word pair counter
+var reccounter = 0; // probe counter in recallsequence
+var locwordcounter = 0; // part counter including word pair, fixation cross, isi, etc. in each block (set to 0 at the end of each encoding phase)
+var locreccounter = 0; // probe counter per block (set to 0 at the end of each recall phase)
+
+var responsetext = '';
+var recallseq = '';
+
+
+/*************************************************** Functions ****************************************************/
+// key press listener
+document.onkeydown = function(key){ 
+    processResponse(key); 
+}
+
+window.onload = function () {
+	const loadTime = new Date();
+    console.log("Page loaded at: ", loadTime.toLocaleString());
+	document.getElementById("loadtimeout").value = loadTime.toString(); 
+	
+    buildStimSequence();
+}
+
+// initialize stimuli sequences when the web page done loading
+function buildStimSequence() {
+    if (window.XMLHttpRequest) {
+        // code for IE7+, Firefox, Chrome, Opera, Safari
+        xhttp = new XMLHttpRequest();
+        // an XMLHttpRequest object is created with the name "xhttp" and will be used for "talking with the server"
+    } else {
+        // code for IE6, IE5r
+        xhttp = new ActiveXObject("Microsoft.XMLHTTP");
+    }
+
+    // get new data from the database to load on the page
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200){ // document done loading & success (vs 404 resource not found)
+
+            // Assuming you have already fetched the data from your PHP script
+            myObj = JSON.parse(this.responseText); // Parse the JSON response
+            // columns 1-160 are word pairs and 161-240 are probes
+
+            /// Process col1 / word pairs (COL1 to COL160)
+            for (let i = 1; i <= 160; i++) {
+                let word = myObj.col1[i - 1]; // Get the word at index i-1 for col1
+
+                // For each word in the column, split into odd and even indexed arrays
+                if (i % 2 === 0) {
+                    // Even index -> wordpair2
+                    shuffwordpairs2.push(word);
+                } else {
+                    // Odd index -> wordpair1
+                    shuffwordpairs1.push(word);
+                }
+            }
+
+            // Process col2 / probes (COL161 to COL240)
+            for (let i = 161; i <= 240; i++) {
+                let word = myObj.col2[i - 161]; // Get the word at index i-161 for col2
+                // For probes, add the words from col2
+                shuffprobes.push(word);
+            }
+
+            // Now, wordpairs1, wordpairs2, and probe are populated
+            console.log("Wordpairs1: ", shuffwordpairs1);
+            console.log("Wordpairs2: ", shuffwordpairs2);
+            console.log("Probe: ", shuffprobes);
+        }
+    }
+
+    xhttp.open("GET", "https://emmameglaserver.com/research/cultural-memorability/en.wordpairs.stim.php", true);
+    xhttp.send();
+}
+     
+// key press listener
+document.onkeydown = function(key){ processResponse(key);};
+
+// get the key and respond
+function processResponse(key){
+	if (key.keyCode == 39){ // if they pressed the right arrow key (next key N)
+		key.preventDefault();
+		if (rightKeyPressThisBreak == 0 && rightKeyPressOnce == 0){
+			rightKeyPressOnce = 1;
+			if(currPhase == STUDYPHASE && blockCounter == 0 && practicetrial == 1){
+				doStudyPhase();
+			} else if(currPhase == BREAK && practicetrial == 0){
+				leftKeyPressThisBreak = 1; // left arrow key no longer works
+				locwordcounter = 0;
+				locreccounter = 0;
+				var nextinstructions = "<div style='font-size:24px'>Next: You will now study a NEW set of word pairs.</div>";
+				updateText(nextinstructions);
+				feedbacklist = '';
+				setTimeout("doStudyPhase()", shortinstructionreadtime);
+				return;
+			}
+		}
+	}
+
+	if(key.keyCode == 37) { // if they pressed the left arrow key (back key B)
+		key.preventDefault();
+		if (leftKeyPressThisBreak == 0 && leftKeyPressOnce == 0) {
+			leftKeyPressOnce == 1;
+			if(currPhase == BREAK && blockCounter == 0 && practicetrial == 0){
+				// recallsequence = practiceprobe.concat(recallsequence);
+				// document.getElementById("probeseqout").value = recallsequence.toString();
+				practicetrial = 1;
+				wordcounter = 0; // word pair counter
+				locwordcounter = 0; // part counter including word pair, fixation cross, isi, etc. in each block (set to 0 at the end of each encoding phase)
+				reccounter = 0; // probe counter in recallsequence
+				locreccounter = 0; // probe counter per block (set to 0 at the end of each recall phase)
+				var nextinstructions = "<div style='font-size:24px'>Next: You will go over the practice block again.</div>";
+				updateText(nextinstructions);
+				feedbacklist = '';
+				setTimeout("doStudyPhase()", instructionreadtime);
+				return;
+			}
+		}
+	}
+	
+	if(currPhase == MATHPHASE){
+	// if it's the math phase
+		if ((key.keyCode >= 48 && key.keyCode <= 57) || (key.keyCode >= 96 && key.keyCode <= 105)) {
+			// if it's a number
+			pressednum = String.fromCharCode(key.keyCode);
+			responsetext = responsetext + pressednum;
+			updateText("<div style='font-size:" + largefontsize + "px'>" + mathstring + responsetext + "</div>");
+		} else if (key.keyCode == 8){
+			// if backspace
+			key.preventDefault();
+			responsetext = responsetext.substring(0,responsetext.length-1);
+			updateText("<div style='font-size:" + largefontsize + "px'>" + mathstring + responsetext + "</div>");
+			return false;
+		} 
+	} else if(currPhase == RECALLPHASE){
+	// if it's the recall phase
+		// if (key.keyCode == 8) {
+		// 	// if backspace
+		// 	key.preventDefault();
+		// 	responsetext = responsetext.substring(0,responsetext.length-1);
+		// 	recallseq = recallseq.substring(0,recallseq.length-1)
+		// 	updateText("<div style='font-size:" + largefontsize + "px'>" + responsetext + "</div>");
+		// 	return false;
+		// } else 
+        if (key.keyCode == 13) {
+			// if enter, go onto the next word
+			// Retrieve the actual typed value from the input field
+            let inputText = document.getElementById('recallinput').value; 
+
+            // If it's the first entry, avoid leading commas
+            if (allrecallseq.length > 0) {
+                allrecallseq += ',';  
+            }
+            allrecallseq += inputText; 
+
+            // Save the sequence
+            document.getElementById('recallseqout').value = allrecallseq;
+
+            // Move to the next recall phase
+            setTimeout("doRecallPhase()", 200); // quick pause before next trial
+		} else {
+            // type English
+			// pressedkey = String.fromCharCode(key.keyCode).toLowerCase();
+			// responsetext = responsetext + pressedkey;
+			// recallseq = recallseq + pressedkey;
+			// updateText("<div style='font-size:" + largefontsize + "px'>" + responsetext + "</div>");
+
+            // type Chinese
+            let content = "";
+            let compositionstart = false;
+            // 输入法输入开始时执行；如果不是输入法输入，不触发
+            recallinput.addEventListener("compositionstart", e => {
+                compositionstart = true;
+                console.log("compositionstart", e);
+            });
+            recallinput.addEventListener("compositionend", e => {
+                compositionstart = false;
+                content += e.data;
+                console.log("compositionend", e);
+            });
+            recallinput.addEventListener("input", e => {
+                if (compositionstart) {
+                return;
+                }
+                content += e.data;
+                console.log("input input", e);
+            });
+            recallinput.addEventListener("blur", e => {
+                console.log("输入的最终内容:", content);
+            });
+        }
+	}
+	
+}
+
+
+// preload and then start
+function buttonPress(){
+	if (instructionpageCounter == totalInstructionpage) {
+		if (blockCounter == totalBlocks){
+			document.getElementById('task').style.display = 'none';
+			document.getElementById('demographic').style.display = 'block';
+		} else {
+			// disable the Start Button
+			document.getElementById("startbutton").innerHTML = "Experiment Running...";
+			document.getElementById("startbutton").disabled = true;
+
+			// take away the instructions
+			updateText("");
+			
+			// study phase
+			console.log("Starting study phase!");
+			makeWordSequence(); // get the word order
+			buildFullSequence(); // build the sequence with the words and fixation
+			var imtag = '<div style="font-size:24px">Memorize 4 pairs of words. You will have ' + pairtime/1000 + ' seconds for each pair. <br><br>Press <b>right arrow key</b> (→) to continue.</div>';
+			updateText(imtag);
+			currPhase = STUDYPHASE;
+		}
+	} else if (instructionpageCounter == 1) {
+		document.getElementById("experimentdisplay").innerHTML = "We are interested in your <b>natural memory</b>. <br><br>" +
+    		"<span style='color: red;'><i>Please refrain from writing words down.</i></span><br><br>" +
+    		"Your memory will <b>NOT affect your payment</b>.";
+		instructionpageCounter++;
+	} else if (instructionpageCounter == 2) {
+		document.getElementById("experimentdisplay").innerHTML = "This experiment consists of 10 mini-tasks. <br><br>Each mini-task follows this structure:" +
+			"<br><br>1. You will try to remember 8 word pairs. Each pair will appear on the screen for 3 seconds." +
+			"<br><br>2. You will solve a few math problems (e.g., 3 + 4 + 5). You will have 5 seconds for each problem." +
+			"<br><br>3. You will be shown one word from each pair and asked to type the matching word. Type <b>PASS</b> if you do not remember. You will be tested on all 8 pairs. You will have unlimited time for each.";
+		instructionpageCounter++;
+	} else if (instructionpageCounter == 3) {
+		document.getElementById("experimentdisplay").innerHTML = "First, you will have a short practice example with 4 word pairs. <br><br>" +
+    		"<span style='color: red;'><i>Please refrain from writing words down.</i></span>";
+		instructionpageCounter++;
+	}
+}
+
+// update the experimental text
+function updateText(text){
+	document.getElementById("experimentdisplay").innerHTML = text;
+}
+
+// update the experimental text for a specific amount of time
+function updateTextTimed(text, time){
+	if (textloop == 1) {
+		textloop = 0;
+		return;
+	}
+	document.getElementById("experimentdisplay").innerHTML = text;
+	textloop = 1;
+	var functioncall = "updateTextTimed('" + text + "'," + time + ")";
+	setTimeout(functioncall, time);
+}
+
+/************************* Different Phase Functions ******************************/
+
+
+// Study word pairs
+function doStudyPhase(){
+	rightKeyPressThisBreak = 1;
+	document.getElementById('instructions').innerHTML = 'Study these word pairs<br>'+
+	"<span style='color: red;'><i>Please refrain from writing words down.</i></span>"; 
+	
+	if (locwordcounter == pairsperphase*numpartspertrial){ // when the study phase is finished
+	
+		// now move onto the distractor task
+		var nextinstructions = "<div style='font-size:24px'>Next: You will see some simple math problems. Please type the correct answer within " + mathresponsetime/1000 + " seconds of it coming on.</div>";
+		updateText(nextinstructions);
+		locwordcounter = 0;
+		currPhase = MATHPHASE;
+		document.getElementById('instructions').innerHTML = 'Math Problems<br><br> <span style="color: red;"><i>Use the number keys above the letter keys </i></span>'; 
+		mathStartTime = Math.floor(Date.now()) + instructionreadtime;
+		responsetext = '';
+		setTimeout("doMathPhase()", instructionreadtime);
+		return;
+	} else if (locwordcounter == pairsatpractice*numpartspertrial && practicetrial == 1){ // practice trial is done
+		var nextinstructions = "<div style='font-size:24px'>Next: You will see a simple math problem. Please type the correct answer within " + mathresponsetime/1000 + " seconds of it coming on.</div>";
+		updateText(nextinstructions);
+		locwordcounter = 0;
+		currPhase = MATHPHASE;
+		document.getElementById('instructions').innerHTML = 'Math Problems<br><br> <span style="color: red;"><i>Use the number keys above the letter keys </i></span>'; 
+		mathStartTime = Math.floor(Date.now()) + instructionreadtime;
+		responsetext = '';
+		setTimeout("doMathPhase()", instructionreadtime);
+		return;
+	}
+		
+	//eventStartTime = Math.floor(Date.now()); // get time in milliseconds
+	// print out the word pair
+	var imtag = fullsequence[wordcounter]; 
+	// tempfeedback = imtag;
+	// tempfeedback = tempfeedback.replace("<br><br>", ", ");
+	// tempfeedback = tempfeedback.replace("+", "");
+	// feedbacklist = feedbacklist + tempfeedback + "<br>";
+	console.log(feedbacklist);
+	updateText("<div style='font-size:" + largefontsize + "px'>" + imtag + "</div>");
+	
+	//saveProgress();
+	
+	console.log(locwordcounter);
+	wordcounter++;
+	locwordcounter++;
+	
+	setTimeout("doStudyPhase()", studytimesequence[wordcounter-1]);
+}
+
+// Simple math problems
+function doMathPhase(){
+
+			mathanswerstring = mathanswerstring + ',' + responsetext;
+			
+			document.getElementById('mathanswerout').value = mathanswerstring;
+			responsetext = '';
+			
+
+	if(Math.floor(Date.now()) - mathStartTime > distractortime) {
+		// done with the math phase
+		var nextinstructions = "<div style='font-size:24px'>Next: You will see one word at a time from the words you studied - type the other word that was paired with it and then press <b>ENTER</b> (↩). If you do not remember, type <b>PASS</b>. </div>";
+		updateText(nextinstructions);
+		currPhase = RECALLPHASE;
+		document.getElementById('instructions').innerHTML = 'Task Instructions'; 
+		responsetext = '';
+		if(blockCounter > 0) {
+			setTimeout("doRecallPhase()", instructionreadtime);
+		}else{
+			setTimeout("doRecallPhase()", longinstructionreadtime);
+		}
+		return;
+	} else if ((Math.floor(Date.now()) - mathStartTime > mathresponsetime) && practicetrial==1) {
+		// done with the math phase for practice trial
+		var nextinstructions = "<div style='font-size:24px'>Next: You will see one word at a time from the words you studied - type the other word that was paired with it and then press <b>ENTER</b> (↩). If you do not remember, type <b>PASS</b>. </div>";
+		updateText(nextinstructions);
+		currPhase = RECALLPHASE;
+		document.getElementById('instructions').innerHTML = 'Task Instructions'; 
+		responsetext = '';
+		setTimeout("doRecallPhase()", longinstructionreadtime);		
+		return;
+	}
+	
+	var num1 = Math.floor(Math.random() * 6) + 1;
+	var num2 = Math.floor(Math.random() * 6) + 1;
+	var num3 = Math.floor(Math.random() * 6) + 1;
+	var correctAnswer = num1 + num2 + num3; // 3 numbers
+	// var correctAnswer = num1 + num2; // 2 numbers
+	mathquestionstring = mathquestionstring + ',' + correctAnswer;
+	document.getElementById('mathquestionout').value = mathquestionstring;
+	
+	mathstring = num1 + ' + ' + num2 + ' + ' + num3 + ' = ';
+	// mathstring = num1 + ' + ' + num2 + ' = ';
+	updateText("<div style='font-size:" + largefontsize + "px'>" + mathstring + "</div>");
+	
+	setTimeout("doMathPhase()", mathresponsetime);
+}
+
+
+// do the recall phase
+function doRecallPhase(){
+	console.log('in recall phase now ' + reccounter + ': ' + recallsequence[reccounter] + ' for ' + recalltimesequence[reccounter] + ' ms');
+	document.getElementById('instructions').innerHTML = 'Try your best to recall the <b>paired</b> word (type <b>PASS</b> if forgot).<br>Press <b>ENTER</b> (↩) when done.';
+	recallseq = '';
+	//recallanswers[reccounter] = responsetext;
+//	allrecallseq = allrecallseq + ',' + recallseq;
+//	document.getElementById('recallseqout').value = allrecallseq;
+	
+	if (locreccounter == pairsperphase){ // when the recall phase is finished
+        blockCounter++;
+		if (blockCounter == totalBlocks){ // when the task phase is finished
+			document.getElementById("startbutton").innerHTML = "Next";
+			document.getElementById("startbutton").disabled = false;
+            var nextinstructions = "You are now done with the main task! Good job. Please fill out a short survey in the next page to get your full payment.";
+		    updateText(nextinstructions);
+            currPhase = BREAK;
+		    document.getElementById('instructions').innerHTML = 'Break'; 
+		}else{
+		// now move onto the distractor task
+		var nextinstructions = "You have finished " + blockCounter + " of " + totalBlocks + " blocks of the experiment.";
+		updateText(nextinstructions);
+		locreccounter = 0;
+		currPhase = BREAK;
+		document.getElementById('instructions').innerHTML = 'Break'; 
+		mathStartTime = Math.floor(Date.now());
+		setTimeout("doBreakPhase()", instructionreadtime);
+        }
+        return;
+	} else if ((locreccounter == pairsatpractice) && (practicetrial==1)){ // when the recall phase for the practice is finished
+		var nextinstructions = "You have finished the practice block.";
+		updateText(nextinstructions);
+		locreccounter = 0;
+		currPhase = BREAK;
+		document.getElementById('instructions').innerHTML = 'Break'; 
+		mathStartTime = Math.floor(Date.now());
+		setTimeout("doBreakPhase()", shortinstructionreadtime);
+		return;
+	}
+	//eventStartTime = Math.floor(Date.now()); // get time in milliseconds
+	// print out the word pair
+	responsetext = recallsequence[reccounter] + '<br>';
+    let inputBox = "<input type='text' id='recallinput' style='font-size:" + largefontsize + "px; width: 5em; padding: 10px; text-align: center;' />";;
+	updateText("<div style='font-size:" + largefontsize + "px'>" + responsetext + "</div>" + inputBox);
+	// Focus on the input box automatically to allow typing immediately
+    document.getElementById('recallinput').focus();
+    // Set the cursor to the start of the text box, ensuring it’s ready to type from the beginning
+    document.getElementById('recallinput').setSelectionRange(0, 0);
+
+	//saveProgress();
+	
+	reccounter++;
+	locreccounter++;
+	
+	// setTimeout("doRecallPhase()", recalltimesequence[reccounter-1]);
+}
+
+// do the break phase
+function doBreakPhase(){
+	document.getElementById('instructions').innerHTML = 'Break'; 
+	rightKeyPressThisBreak = 0;
+	rightKeyPressOnce = 0;
+	if (practicetrial == 1){
+		var imtag = feedbacklist + "<br><br>Now, we will move on to the real task, which contains " + totalBlocks + " blocks resembling what you have just practiced on. <br><br> If you do NOT understand the instruction, press <b>left arrow key</b> (←) to do the practice block again. <br><br> Otherwise, press <b>right arrow key</b> (→) to continue to the real task.";
+        leftKeyPressOnce = 0;
+		if (practicetrial == 1){
+		    practicetrial = 0;
+	    }
+    } else {
+		var imtag = feedbacklist + "<br><br>Press right arrow key (→) to start the next block.";
+	}
+	updateText(imtag);
+	
+}
+
+// do the feedback phase
+// function doFeedbackPhase(){
+// 	document.getElementById('instructions').innerHTML = 'The correct answers:'; 
+	
+// 	feedbacklist = feedbacklist.replace(/<br><br><br><br>/g, "<br>")
+	
+// 	if (wordcounter == fullsequence.length){
+// 		// you're done!
+// 		var imtag = feedbacklist + "<br><br>You are now done! Good job. You may submit the HIT.";
+// 	} else if (practicetrial == 1){
+// 		var imtag = feedbacklist + "<br><br>Now, we will move on to the real task. You will now learn 6 word pairs at a time instead of 1. Press N to continue.";
+// 	} else {
+// 		var imtag = feedbacklist + "<br><br>Press N to start the next trial.";
+// 	}
+// 	updateText(imtag);
+	
+// 	if (practicetrial == 1){
+// 		practicetrial = 0;
+// 	}
+	
+// }
+
+/************************* Experiment Setup Functions ******************************/
+
+
+// create a randomized word pair sequence
+function makeWordSequence(){
+	// sequence for word studying
+	// [shuffwordpairs1,shuffwordpairs2,shuffprobes] = shuffleArrays([wordpairs1,wordpairs2,probes]);
+	// shuffwordpairs1.unshift(practiceword1);
+	// shuffwordpairs2.unshift(practiceword2);
+	// shuffprobes.unshift(practiceprobe);
+    shuffwordpairs1 = practiceword1.concat(shuffwordpairs1);
+    shuffwordpairs2 = practiceword2.concat(shuffwordpairs2);
+    shuffprobes = practiceprobe.concat(shuffprobes);
+}
+
+// builds the full sequence with both words and fixations, as well as timings
+function buildFullSequence(){
+	// build the study sequence
+	var i = 0;
+	var wordCounter = 0;
+	while (i < shuffwordpairs1.length*numpartspertrial){ //*4 because there are 4 elements per trial
+
+		// fixation
+		fullsequence[i] = fixation;
+		studytimesequence[i] = startfix;
+		i++;
+		
+		// jittered blank
+		fullsequence[i] = blank;
+		studytimesequence[i] = Math.floor(Math.random() * (jitterblank[1]-jitterblank[0]+1)) + jitterblank[0];
+		i++;
+		
+		// word pair
+		fullsequence[i] = shuffwordpairs1[wordCounter] + '<br><br>' + shuffwordpairs2[wordCounter];
+		studytimesequence[i] = pairtime;
+		wordCounter++;
+		i++;
+		
+		// ISI
+		fullsequence[i] = fixation;
+		studytimesequence[i] = studyISI;
+		i++;
+	}
+	document.getElementById("wordseqout").value = fullsequence.toString(); // save the words
+	document.getElementById("timeseqout").value = studytimesequence.toString(); // save the time
+	
+	// build the recognition sequence
+	var i = 0;
+	var wordCounter = 0;
+	//while (i < probes.length*numpartspertrial){
+	while (i < shuffprobes.length){
+	// NOTE - switched from timed version to untimed version, so have commented out a bit
+	
+		// fixation
+	//	recallsequence[i] = fixation;
+	//	recalltimesequence[i] = retfix;
+	//	i++;
+		
+		// jittered blank
+	//	recallsequence[i] = blank;
+	//	recalltimesequence[i] = Math.floor(Math.random() * (retjitterblank[1]-retjitterblank[0]+1)) + retjitterblank[0];
+	//	i++;
+		
+		// word pair
+		recallsequence[i] = shuffprobes[wordCounter];
+		recalltimesequence[i] = cuetime;
+		wordCounter++;
+		i++;
+		
+		// ISI
+	//	recallsequence[i] = fixation;
+	//	recalltimesequence[i] = retISI;
+	//	i++;
+	}
+	document.getElementById("probeseqout").value = recallsequence.toString();
+	
+	console.log("Done building the full sequence.");
+}
+
+
+/*************************************** General useful functions **********************************************/
+
+
+
+// // populate an array of a range
+// function populateArray(start, end){
+// 	array = [];
+// 	for (var i = start; i < end; i++){
+// 		array[i] = i;
+// 	}
+// 	return array;
+// }
+
+// // populate an array of a value
+// function populateArrayVal(value, length){
+// 	array = [];
+// 	for (var i = 0; i < length; i++){
+// 		array[i] = value;
+// 	}
+// 	return array;
+// }
+
+// // shuffle an array
+// function shuffleArray(array) {
+//     for (var i = array.length - 1; i > 0; i--) {
+//         var j = Math.floor(Math.random() * (i + 1));
+//         var temp = array[i];
+//         array[i] = array[j];
+//         array[j] = temp;
+//     }
+//     return array;
+// }
+
+// // shuffle multiple arrays with the same ordering (must all be same length)
+// function shuffleArrays(arrays){
+// 	for (var i = arrays[0].length - 1; i > 0; i--) {
+// 		var j = Math.floor(Math.random() * (i + 1));
+// 		for (var an = 0; an < arrays.length; an++) {
+// 			var temp = arrays[an][i];
+// 			arrays[an][i] = arrays[an][j];
+// 			arrays[an][j] = temp;
+// 		}
+// 	}
+// 	return arrays;
+// }
+			
+// // count the number of occurrences of a value in an array
+// function countOccurences(array, value){
+// 	var counter = 0;
+// 	for (var i = 0; i < array.length; i++){
+// 		if (array[i] == value){
+// 			counter++;
+// 		}
+// 	}
+// 	return counter;
+// }
+
+// launch full screen
+function launchFullScreen(element) {
+  if(element.requestFullScreen) {
+    element.requestFullScreen();
+  } else if(element.mozRequestFullScreen) {
+    element.mozRequestFullScreen();
+  } else if(element.webkitRequestFullScreen) { /* Safari */
+    element.webkitRequestFullScreen();
+  } else if (elem.msRequestFullscreen) { /* IE11 */
+    elem.msRequestFullscreen();
+  }
+}
+
+// show and hide consent form
+function viewConsent() {
+    var x = document.getElementById("consentform");
+    if (x.style.display === "none") {
+        x.style.display = "block";
+    } else {
+        x.style.display = "none";
+    }
+}
+
+// enable next once agree to consent
+function enableNext() {
+    document.getElementById("showvidcheck").disabled = false;
+} 
+
+function showTask() {
+	if (document.getElementById("prolificid").value.trim() !== "") {
+		// Launch fullscreen for browsers that support it!
+		launchFullScreen(document.documentElement);		
+        document.getElementById('consent').style.display = 'none';
+		document.getElementById('task').style.display = 'block';
+    } else {
+		document.getElementById("prolificMessage").textContent = "Please enter the Prolific ID at the top to enable the Next button.";
+    }
+}
+
+
+
+
+
+
+// collect data and send to php/database
+function SubmitAnswers(){
+	// this submits everything & sends to the server
+	
+	var cultureanswer = [];    
+	// Iterate through each question and capture the selected value
+	for (var i = 1; i <= 16; i++) {
+		var selectedOption = document.querySelector('input[name="q' + i + '"]:checked');
+		if (selectedOption) {
+			cultureanswer[i-1]=selectedOption.value;
+		} else {
+			cultureanswer[i-1]=null; // In case no answer was selected for a question
+		}
+	}
+	document.getElementById("cultureansout").value = cultureanswer.toString();
+
+	document.getElementById('prolificidHidden').value = document.getElementById('prolificid').value;
+    document.getElementById('smoothHidden').value = document.getElementById('smooth').value;
+    document.getElementById('smoothdetailsHidden').value = document.getElementById('smoothdetails').value;
+    document.getElementById('genderHidden').value = document.getElementById('gender').value;
+    document.getElementById('ethnicityHidden').value = document.getElementById('ethnicity').value;
+    document.getElementById('raceHidden').value = document.getElementById('race').value;
+    document.getElementById('ageHidden').value = document.getElementById('age').value;
+    document.getElementById('languageHidden').value = document.getElementById('language').value;
+    document.getElementById('otherlanguageHidden').value = document.getElementById('otherlanguage').value;
+    document.getElementById('educationHidden').value = document.getElementById('education').value;
+    document.getElementById('writewordsdownHidden').value = document.getElementById('writewordsdown').value;
+
+	document.getElementById("myForm").submit(); // submit form after consolidation osiq answers 
+
+	if (blockCounter == totalBlocks){
+		window.open("https://app.prolific.com/submissions/complete?cc=C1BXTN69", "_blank");
+	}
+}
+</script>
+
+
+<form method = "post" autocomplete="off" action="en.wordpairs.data.php" id="myForm">
+    <!--- These are the hidden variables that get outputted to the server --->
+    <input type = "hidden" name = "wordseqout" id = "wordseqout" value = "" />
+    <input type = "hidden" name = "timeseqout" id = "timeseqout" value = "" />
+    <input type = "hidden" name = "probeseqout" id = "probeseqout" value = "" />
+    <input type = "hidden" name = "recallseqout" id = "recallseqout" value = "" />
+    <input type = "hidden" name = "mathquestionout" id = "mathquestionout" value = "" />
+    <input type = "hidden" name = "mathanswerout" id = "mathanswerout" value = "" />   
+	
+	<input type="hidden" id="cultureansout" name="cultureansout">
+	<input type="hidden" name="prolificidHidden" id="prolificidHidden">
+	<input type="hidden" name="smoothHidden" id="smoothHidden">
+	<input type="hidden" name="smoothdetailsHidden" id="smoothdetailsHidden">
+	<input type="hidden" name="genderHidden" id="genderHidden">
+	<input type="hidden" name="ethnicityHidden" id="ethnicityHidden">
+	<input type="hidden" name="raceHidden" id="raceHidden">
+	<input type="hidden" name="ageHidden" id="ageHidden">
+	<input type="hidden" name="languageHidden" id="languageHidden">
+	<input type="hidden" name="otherlanguageHidden" id="otherlanguageHidden">
+	<input type="hidden" name="educationHidden" id="educationHidden">
+    <input type="hidden" name="writewordsdownHidden" id="writewordsdownHidden">
+	<input type="hidden" name="loadtimeout" id="loadtimeout">
+
+<!--*************************************************** Switch back to html ****************************************************-->
+<!-- consent form -->
+<div id="consent" style="display: block">
+	<b style="font-size: 2.2em;">
+		To confirm your participation and eligibility for incentivization, please enter your unique 
+		<span style="color: red;">Prolific ID</span> here:
+	  </b>
+	  <input type="text" name="prolificid" id="prolificid" size="50" placeholder="Please enter correctly to ensure payment">
+	  <br><br>
+    <h1>Welcome!</h1>
+	<p>You must be a fluent English speaker and living within the U.S. to participate. Please make sure you agree with our acknowledgement of participation before continuing.</p>
+	<br>
+	<input type="button" onclick="viewConsent()" value="View Full Acknowledgement of Participation Form"></input>
+		<div id="consentform" style="display: none">
+            <h3>University of Chicago Online Consent Form for Research Participation</h3>
+			<p><em>Study Number:</em> IRB19-1395</p>
+			<p><em>Study Title:</em> Human memory & cognition</p>
+			<p><em>Researcher:</em> Wilma A. Bainbridge, PhD</p>
+			
+			<p><strong>Description:</strong> We are researchers at the University of Chicago doing a research study about how human sensation (vision, audition) 
+                and memory interact. During this study, you will see visual stimuli (e.g., images, videos, text) presented on a computer monitor, and/or hear sounds 
+                (e.g., music, tones, voices, sounds from a video) through headphones or speakers. You will respond to the task instructions with a button press, typing, 
+                mouse movement, drawing, or speaking through a microphone. You may also be asked to complete questionnaires that assess cognitive abilities. Participation 
+                will take less than 1 hour. Your participation is voluntary and you can withdraw at any time, although data collected up until the point of withdrawal 
+                may still be included in the analysis.</p>
+			
+			<p><strong>Incentives:</strong> Compensation will be provided as listed for the individual task, at a rate of approximately $8/hour. In the event of an 
+                incomplete task, compensation will be determined based on what was completed and at the researchers' discretion.</p>
+			
+			<p><strong>PLEASE NOTE:</strong> This study contains attention checks to make sure that participants are finishing the tasks honestly and completely. 
+			As long as you read the instructions and complete the tasks, your task will be approved. If you fail these checks, your task will be rejected.</p>
+			
+			<p><strong>Risks and Benefits:</strong> Taking part in this research study may not benefit you personally, but we may learn new things that could help 
+			others. Your participation in this study does not involve any risk to you beyond that of everyday life.</p>
+			
+			<p><strong>Confidentiality:</strong> Your Prolific ID will be used to distribute payment to you but will not be stored with the research data we collect 
+                from you. We will not be accessing any personally identifying information about you that you may have put on your Prolific profile page. De-identified 
+                data from this study may be used for future research studies or shared with other researchers for future research without your additional informed consent. 
+                If you decide to withdraw from this study, data collected up until the point of withdrawal may still be included in the analysis.</p>
+			
+			<p><strong>Contacts & Questions:</strong><br>
+			If you have questions or concerns about the study, you can contact the Principal Investigator Dr. Wilma A. Bainbridge at bainbridgelab@gmail.com .
+			<br>
+			If you have any questions about your rights as a participant in this research, feel you have been harmed, or wish to discuss other study-related 
+			concerns with someone who is not part of the research team, you can contact the University of Chicago Social & Behavioral Sciences Institutional 
+			Review Board (IRB) Office by phone at (773) 702-2915, or by email at sbs-irb@uchicago.edu.</p> 
+		
+		</div>
+	<br>
+			<h3>Consent:</h3>
+			<p>Participation is voluntary. Refusal to participate or withdrawing from the research will involve no penalty or loss of benefits to which you 
+			might otherwise be entitled.</p> 
+			<p>By clicking “Agree” below, you confirm that you have read the consent form, are at least 18 years old, and agree to participate in the research. 
+			Please print or save a copy of this page for your records. </p>
+
+			<p><input name="consent" type="checkbox" onclick="enableNext()"> I agree to participate in the experiment</input></p>
+	<br>
+	<input type="button" onclick="showTask()" value="Next" id="showvidcheck" disabled="true"></input>
+	<span id="prolificMessage" style="color: red; margin-left: 10px;"></span>
+</div>
+
+
+<div id="task" style="display: none">
+<center>
+<h1>Word Memory Test</h1>
+<span id="wholetable">
+<table style="border:1px solid black">
+	<tbody>
+		<tr>
+			<td style="border:1px solid black">
+			<center>
+			<p><span id="instructions" style="font-size:32;font-family:helvetica">Task Instructions</span></span></p>
+			</center>
+			</td>
+		</tr>
+		<tr>
+			<td height="400" width="600">
+			<center><table><tr><td valign="top" align="center"><span id="experimentdisplay" style="font-family:helvetica;font-size:20px">
+				This is an experiment on word memory, which will take approximately 20 minutes.
+				<br><br>This experiment works for users of Google Chrome, Safari, Firefox, and Edge. 
+				<br><br>Please only participate if English is your native language.
+				</span></td></tr></table></center>
+			</td>
+		</tr>
+	</tbody>
+</table></span>
+<br>
+<h3><button type = "button" id = "startbutton" onclick = "buttonPress()" autocomplete="off" style="border: 1px solid black; height:100; width:250; border-radius:12px; font-size:20px">Next</button></h3><br><br>
+
+<br><br>
+<p><span id = "consentinfo">By making judgements about these stimuli, you are participating in a study being performed by cognitive scientists in the Brain Bridge Lab at the University of Chicago. If you have questions about this research, please contact the Brain Bridge Lab at brainbridgelab@gmail.com. Your participation in this research is voluntary. You may decline further participation, at any time, without adverse consequences. Your anonymity is assured; the researchers who have requested your participation will not receive any personal information about you.</span></p>
+<b>Click here to submit this task.</b> Only submit when completed, or you won't get full payment! If you decide to stop halfway, you can click this to end.<br><br>
+<input type="button" id="submitbutton" name="submitbtn" autocomplete="off" onclick="SubmitAnswers()" value="Submit"><br><br><br>
+</center>
+</div>
+
+
+<div id="demographic" style="display: none">
+<table>
+    <tr><td>        
+	<b>Did the task run smoothly?</b>
+	<select name="smooth" id="smooth">
+		<option value="yes">Yes</option>
+		<option value="no">No</option>
+	</select>
+</td></tr>
+<tr><td>
+	<b>If you select "No" for the previous question, please provide more details. </b> 
+	<input type="text" name="smoothdetails" id="smoothdetails" size="50">
+</td></tr>
+<tr><td>
+	<b>Did you write words down to help memory? (Please answer honestly. Your honest answer will NOT affect your payments.)</b>
+	<select name="writewordsdown" id="writewordsdown">
+		<option value="no">No</option>
+		<option value="yes">Yes</option>
+	</select>
+</td></tr>
+
+
+<tr><td><br><br>Please rate the following statements <b>(1=never/definitely no; 9=always/definitely yes)</b>:</td></tr>
+<table border="1" style="border-collapse: collapse;">
+	<!-- Header row with numbers 1 to 9 and labels -->
+	<tr>
+		<th>Statements</th>
+		<th>1</th>
+		<th>2</th>
+		<th>3</th>
+		<th>4</th>
+		<th>5</th>
+		<th>6</th>
+		<th>7</th>
+		<th>8</th>
+		<th>9</th>
+	</tr>
+
+	<!-- Question 1 -->
+	<tr>
+		<td>1. Parents and children must stay together as much as possible.</td>
+		<td><input type="radio" name="q1" value="1"></td>
+		<td><input type="radio" name="q1" value="2"></td>
+		<td><input type="radio" name="q1" value="3"></td>
+		<td><input type="radio" name="q1" value="4"></td>
+		<td><input type="radio" name="q1" value="5"></td>
+		<td><input type="radio" name="q1" value="6"></td>
+		<td><input type="radio" name="q1" value="7"></td>
+		<td><input type="radio" name="q1" value="8"></td>
+		<td><input type="radio" name="q1" value="9"></td>
+	</tr>
+
+	<!-- Question 2 -->
+	<tr>
+		<td>2. To me, pleasure is spending time with others.</td>
+		<td><input type="radio" name="q2" value="1"></td>
+		<td><input type="radio" name="q2" value="2"></td>
+		<td><input type="radio" name="q2" value="3"></td>
+		<td><input type="radio" name="q2" value="4"></td>
+		<td><input type="radio" name="q2" value="5"></td>
+		<td><input type="radio" name="q2" value="6"></td>
+		<td><input type="radio" name="q2" value="7"></td>
+		<td><input type="radio" name="q2" value="8"></td>
+		<td><input type="radio" name="q2" value="9"></td>
+	</tr>
+
+	<!-- Question 3 -->
+	<tr>
+		<td>3. I often do "my own thing."</td>
+		<td><input type="radio" name="q3" value="1"></td>
+		<td><input type="radio" name="q3" value="2"></td>
+		<td><input type="radio" name="q3" value="3"></td>
+		<td><input type="radio" name="q3" value="4"></td>
+		<td><input type="radio" name="q3" value="5"></td>
+		<td><input type="radio" name="q3" value="6"></td>
+		<td><input type="radio" name="q3" value="7"></td>
+		<td><input type="radio" name="q3" value="8"></td>
+		<td><input type="radio" name="q3" value="9"></td>
+	</tr>
+
+	<!-- Question 4 -->
+	<tr>
+		<td>4. My personal identity, independent of others, is very important to me.</td>
+		<td><input type="radio" name="q4" value="1"></td>
+		<td><input type="radio" name="q4" value="2"></td>
+		<td><input type="radio" name="q4" value="3"></td>
+		<td><input type="radio" name="q4" value="4"></td>
+		<td><input type="radio" name="q4" value="5"></td>
+		<td><input type="radio" name="q4" value="6"></td>
+		<td><input type="radio" name="q4" value="7"></td>
+		<td><input type="radio" name="q4" value="8"></td>
+		<td><input type="radio" name="q4" value="9"></td>
+	</tr>
+
+	<!-- Question 5 -->
+	<tr>
+		<td>5. If a coworker gets a prize, I would feel proud.</td>
+		<td><input type="radio" name="q5" value="1"></td>
+		<td><input type="radio" name="q5" value="2"></td>
+		<td><input type="radio" name="q5" value="3"></td>
+		<td><input type="radio" name="q5" value="4"></td>
+		<td><input type="radio" name="q5" value="5"></td>
+		<td><input type="radio" name="q5" value="6"></td>
+		<td><input type="radio" name="q5" value="7"></td>
+		<td><input type="radio" name="q5" value="8"></td>
+		<td><input type="radio" name="q5" value="9"></td>
+	</tr>
+
+	<!-- Question 6 -->
+	<tr>
+		<td>6. Winning is everything.</td>
+		<td><input type="radio" name="q6" value="1"></td>
+		<td><input type="radio" name="q6" value="2"></td>
+		<td><input type="radio" name="q6" value="3"></td>
+		<td><input type="radio" name="q6" value="4"></td>
+		<td><input type="radio" name="q6" value="5"></td>
+		<td><input type="radio" name="q6" value="6"></td>
+		<td><input type="radio" name="q6" value="7"></td>
+		<td><input type="radio" name="q6" value="8"></td>
+		<td><input type="radio" name="q6" value="9"></td>
+	</tr>
+
+	<!-- Question 7 -->
+	<tr>
+		<td>7. When another person does better than I do, I get tense and aroused.</td>
+		<td><input type="radio" name="q7" value="1"></td>
+		<td><input type="radio" name="q7" value="2"></td>
+		<td><input type="radio" name="q7" value="3"></td>
+		<td><input type="radio" name="q7" value="4"></td>
+		<td><input type="radio" name="q7" value="5"></td>
+		<td><input type="radio" name="q7" value="6"></td>
+		<td><input type="radio" name="q7" value="7"></td>
+		<td><input type="radio" name="q7" value="8"></td>
+		<td><input type="radio" name="q7" value="9"></td>
+	</tr>
+
+	<!-- Question 8 -->
+	<tr>
+		<td>8. I feel good when I cooperate with others.</td>
+		<td><input type="radio" name="q8" value="1"></td>
+		<td><input type="radio" name="q8" value="2"></td>
+		<td><input type="radio" name="q8" value="3"></td>
+		<td><input type="radio" name="q8" value="4"></td>
+		<td><input type="radio" name="q8" value="5"></td>
+		<td><input type="radio" name="q8" value="6"></td>
+		<td><input type="radio" name="q8" value="7"></td>
+		<td><input type="radio" name="q8" value="8"></td>
+		<td><input type="radio" name="q8" value="9"></td>
+	</tr>
+
+	<!-- Question 9 -->
+	<tr>
+		<td>9. It is important that I do my job better than others.</td>
+		<td><input type="radio" name="q9" value="1"></td>
+		<td><input type="radio" name="q9" value="2"></td>
+		<td><input type="radio" name="q9" value="3"></td>
+		<td><input type="radio" name="q9" value="4"></td>
+		<td><input type="radio" name="q9" value="5"></td>
+		<td><input type="radio" name="q9" value="6"></td>
+		<td><input type="radio" name="q9" value="7"></td>
+		<td><input type="radio" name="q9" value="8"></td>
+		<td><input type="radio" name="q9" value="9"></td>
+	</tr>
+
+	<!-- Question 10 -->
+	<tr>
+		<td>10. The well-being of my coworkers is important to me.</td>
+		<td><input type="radio" name="q10" value="1"></td>
+		<td><input type="radio" name="q10" value="2"></td>
+		<td><input type="radio" name="q10" value="3"></td>
+		<td><input type="radio" name="q10" value="4"></td>
+		<td><input type="radio" name="q10" value="5"></td>
+		<td><input type="radio" name="q10" value="6"></td>
+		<td><input type="radio" name="q10" value="7"></td>
+		<td><input type="radio" name="q10" value="8"></td>
+		<td><input type="radio" name="q10" value="9"></td>
+	</tr>
+
+	<!-- Question 11 -->
+	<tr>
+		<td>11. It is important to me that I respect the decisions made by my groups.</td>
+		<td><input type="radio" name="q11" value="1"></td>
+		<td><input type="radio" name="q11" value="2"></td>
+		<td><input type="radio" name="q11" value="3"></td>
+		<td><input type="radio" name="q11" value="4"></td>
+		<td><input type="radio" name="q11" value="5"></td>
+		<td><input type="radio" name="q11" value="6"></td>
+		<td><input type="radio" name="q11" value="7"></td>
+		<td><input type="radio" name="q11" value="8"></td>
+		<td><input type="radio" name="q11" value="9"></td>
+	</tr>
+
+	<!-- Question 12 -->
+	<tr>
+		<td>12. Competition is the law of nature.</td>
+		<td><input type="radio" name="q12" value="1"></td>
+		<td><input type="radio" name="q12" value="2"></td>
+		<td><input type="radio" name="q12" value="3"></td>
+		<td><input type="radio" name="q12" value="4"></td>
+		<td><input type="radio" name="q12" value="5"></td>
+		<td><input type="radio" name="q12" value="6"></td>
+		<td><input type="radio" name="q12" value="7"></td>
+		<td><input type="radio" name="q12" value="8"></td>
+		<td><input type="radio" name="q12" value="9"></td>
+	</tr>
+
+	<!-- Question 13 -->
+	<tr>
+		<td>13. Family members should stick together, no matter what sacrifices are required.</td>
+		<td><input type="radio" name="q13" value="1"></td>
+		<td><input type="radio" name="q13" value="2"></td>
+		<td><input type="radio" name="q13" value="3"></td>
+		<td><input type="radio" name="q13" value="4"></td>
+		<td><input type="radio" name="q13" value="5"></td>
+		<td><input type="radio" name="q13" value="6"></td>
+		<td><input type="radio" name="q13" value="7"></td>
+		<td><input type="radio" name="q13" value="8"></td>
+		<td><input type="radio" name="q13" value="9"></td>
+	</tr>
+
+	<!-- Question 14 -->
+	<tr>
+		<td>14. I rely on myself most of the time; I rarely rely on others.</td>
+		<td><input type="radio" name="q14" value="1"></td>
+		<td><input type="radio" name="q14" value="2"></td>
+		<td><input type="radio" name="q14" value="3"></td>
+		<td><input type="radio" name="q14" value="4"></td>
+		<td><input type="radio" name="q14" value="5"></td>
+		<td><input type="radio" name="q14" value="6"></td>
+		<td><input type="radio" name="q14" value="7"></td>
+		<td><input type="radio" name="q14" value="8"></td>
+		<td><input type="radio" name="q14" value="9"></td>
+	</tr>
+
+	<!-- Question 15 -->
+	<tr>
+		<td>15. I'd rather depend on myself than others.</td>
+		<td><input type="radio" name="q15" value="1"></td>
+		<td><input type="radio" name="q15" value="2"></td>
+		<td><input type="radio" name="q15" value="3"></td>
+		<td><input type="radio" name="q15" value="4"></td>
+		<td><input type="radio" name="q15" value="5"></td>
+		<td><input type="radio" name="q15" value="6"></td>
+		<td><input type="radio" name="q15" value="7"></td>
+		<td><input type="radio" name="q15" value="8"></td>
+		<td><input type="radio" name="q15" value="9"></td>
+	</tr>
+
+	<!-- Question 16 -->
+	<tr>
+		<td>16. It is my duty to take care of my family, even when I have to sacrifice what I want.</td>
+		<td><input type="radio" name="q16" value="1"></td>
+		<td><input type="radio" name="q16" value="2"></td>
+		<td><input type="radio" name="q16" value="3"></td>
+		<td><input type="radio" name="q16" value="4"></td>
+		<td><input type="radio" name="q16" value="5"></td>
+		<td><input type="radio" name="q16" value="6"></td>
+		<td><input type="radio" name="q16" value="7"></td>
+		<td><input type="radio" name="q16" value="8"></td>
+		<td><input type="radio" name="q16" value="9"></td>
+	</tr>
+</table>
+
+
+<tr><td><br><br>Please also provide the following demographic information for reporting purposes:</td></tr><br>
+<tr><td><b>Gender:</b>
+	<select name="gender" id="gender">
+		<option value="blank">Select Option</option>
+		<option value="female">Female</option>
+		<option value="male">Male</option>
+		<option value="na">Other / No response</option>
+	</select>
+</td></tr><br>
+<tr><td><b>Ethnicity:</b>
+	<select name="ethnicity" id="ethnicity">
+		<option value="blank">Select Option</option>
+		<option value="hispanic">Hispanic/Latino</option>
+		<option value="nothispanic">Not Hispanic/Latino</option>
+		<option value="na">No response</option>
+	</select>
+</td></tr><br>
+<tr><td><b>Race:</b>
+	<select name="race" id="race">
+		<option value="blank">Select Option</option>
+		<option value="nativeamerican">American Indian/Native American</option>
+		<option value="asian">Asian</option>
+		<option value="pacificislander">Native Hawaiian/Pacific Islander</option>
+		<option value="black">Black/African American</option>
+		<option value="white">White</option>
+		<option value="multiracial">More than one race</option>
+		<option value="na">No response</option>
+	</select>
+</td></tr><br>
+<tr><td><b>Age:</b> <input type="text" name="age" id="age" size="3"></td></tr><br>
+<tr><td><b>What is/are your native language(s)? </b> <input type="text" name="language" id="language" size="50"></td></tr><br>
+<tr><td><b>What other language(s) do you know? Describe proficiency for each. (Type "None" if none) </b> <input type="text" name="otherlanguage" id="otherlanguage" size="50"></td></tr><br>
+<tr><td><b>Highest level of education?</b> 
+	<select name="education" id="education">
+    <option value="blank">Select Option</option>    
+    <option value="none">No schooling completed</option>
+    <option value="elementary">Nursery school to 5th grade</option>
+    <option value="somemiddle">Some middle school, no diploma</option>
+    <option value="middle">Middle school graduate, diploma, or the equivalent</option>
+    <option value="somehigh">Some high school, no diploma</option>
+    <option value="high">High school graduate, diploma, or the equivalent</option>
+    <option value="somecollege">Some college credit, no degree</option>
+    <option value="tradeschool">Trade/technical/vocational training</option>
+    <option value="associate">Associate degree</option>
+    <option value="bachelors">Bachelor's degree</option>
+    <option value="masters">Master's degree</option>
+    <option value="professional">Professional degree</option>
+    <option value="doctorate">Doctorate degree</option>
+    </select>
+    </td></tr><br><br><br><br>
+    </table>
+	<br><br><br><br><br>
+	The experiment is now complete! Be sure you answered the above questions to ensure payment. You may now
+    <b>SUBMIT Answers</b>.<br><br>
+
+    <br><b>Click here to submit your answers.</b> <br><br>
+    <input type="button" id="submitbutton" name="submitbtn" autocomplete="off" onclick="SubmitAnswers()" value="Submit"><br><br><br>
+
+</div>
+
+</body>
+</html>
+
